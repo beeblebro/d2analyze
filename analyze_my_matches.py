@@ -1,10 +1,8 @@
+import operator
 import json
 import matplotlib.pyplot as plt
 import numpy as np
 import pygal
-from matplotlib.ticker import FuncFormatter
-
-from conf import my_id
 
 
 def get_my_heroes(fp):
@@ -15,11 +13,48 @@ def get_my_heroes(fp):
 
 
 def get_durations(fp):
-    """Get matches durations from matches file"""
+    """Get matches durations [min] from matches file"""
+    durs = []
     for line in fp:
         match = json.loads(line)
-        # print(match.keys())
-        yield int(np.round(match['duration'] / 60))
+        durs.append(match['duration'] / 60)
+    fp.seek(0, 0)
+    return durs
+
+
+def get_fb_time(fp):
+    """Get first blood times [min]"""
+    fb_t = []
+    for line in fp:
+        match = json.loads(line)
+        fb_t.append(match['first_blood_time'] / 60)
+    fp.seek(0, 0)
+    return fb_t
+
+
+def print_summary(my_stats_file, my_matches_file):
+    my_heroes = get_my_heroes(my_stats_file)
+    hist = {}
+    for hero in my_heroes:
+        hist[hero] = hist.get(hero, 0) + 1
+    sorted_by_freq = sorted(hist.items(), key=operator.itemgetter(1), reverse=True)
+    top_five = sorted_by_freq[:5]
+
+    durations = np.array(list(get_durations(my_matches_file)))
+    aver_duration = round(np.mean(durations))
+    max_duration = round(max(durations))
+    min_duration = round(min(durations))
+    fb_times = np.array(get_fb_time(my_matches_file))
+    aver_fb_time = round(np.mean(fb_times))
+
+    print("Last 100 games summary:\n")
+    print("Five most playable heroes:")
+    for hero, freq in top_five:
+        print('\t' + str(hero) + ' ' + str(freq))
+    print()
+    print('average match duration: ' + str(aver_duration))
+    print('the longest: ' + str(max_duration) + '; the shortest: ' + str(min_duration))
+    print('average first blood time: ' + str(aver_fb_time))
 
 
 def plot_most_played_heroes(heroes):
@@ -37,28 +72,16 @@ def plot_most_played_heroes(heroes):
     chart.render_to_file('plots/most_played_heroes.svg')
 
 
-if __name__ == "__main__":
-    my_stats_file = open("my_stats.jsonl", 'r')
-    my_matches_file = open("my_matches_file.jsonl", 'r')
-
-    my_heroes = get_my_heroes(my_stats_file)
-    durations = list(get_durations(my_matches_file))
-
-    durations = np.array(durations)
-
-    # plot_most_played_heroes(my_heroes)
-
-    print(np.mean(durations))
-
-    chart = pygal.Bar()
-    chart.add('Match durations', durations)
-    chart.render_to_file('plots/match_durations.svg')
-
-    # hist = np.histogram(durations, bins='auto')
-
+def plot_durations(durations):
     plt.hist(durations, bins=20, facecolor='green')
     plt.xlabel('Durations')
     plt.ylabel('Count')
     plt.title('Durations of last 100 games')
     plt.grid(True)
     plt.show()
+
+
+if __name__ == "__main__":
+    my_stats_file = open("my_stats.jsonl", 'r')
+    my_matches_file = open("my_matches_file.jsonl", 'r')
+    print_summary(my_stats_file, my_matches_file)
